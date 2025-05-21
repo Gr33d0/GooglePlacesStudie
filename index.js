@@ -1,10 +1,10 @@
 const express = require('express');
 const axios = require('axios');
 require('dotenv').config();
-
+const cors = require('cors');
 const app = express();
 const PORT = 3000;
-
+app.use(cors());
 app.get('/buscar-lugares', async (req, res) => {
   const { lat, lng, tipo } = req.query;
 
@@ -17,6 +17,7 @@ app.get('/buscar-lugares', async (req, res) => {
         key: process.env.GOOGLE_API_KEY
       }
     });
+    console.log(resposta.data); // debug da resposta completa
 
     const todosLugares = resposta.data.results;
     const melhores = selecionarMelhoresLugares(todosLugares, 5);

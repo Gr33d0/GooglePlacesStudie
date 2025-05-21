@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Rota com Google Maps</title>
+    <meta charset="utf-8" />
+    <style>
+      #map {
+        height: 100vh;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <script>
+      async function initMap() {
+        // Coordenadas iniciais (centro do mapa)
+        const center = { lat: -23.5505, lng: -46.6333 };
+
+        const map = new google.maps.Map(document.getElementById("map"), {
+          zoom: 13,
+          center,
+        });
+
+        const directionsService = new google.maps.DirectionsService();
+        const directionsRenderer = new google.maps.DirectionsRenderer({ map });
+
+        // Buscar a rota do backend
+        const resposta = await fetch(
+          "http://localhost:3000/buscar-lugares?lat=-23.5505&lng=-46.6333&tipo=restaurant"
+        );
+        const pontos = await resposta.json();
+
+        // Agora envia os pontos para gerar a rota
+        const rotaResp = await fetch("http://localhost:3000/gerar-rota", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pontos }),
+        });
+
+        const rota = await rotaResp.json();
+
+        directionsRenderer.setDirections({
+          routes: [rota],
+          request: {}, // não precisa preencher nada aqui
+        });
+      }
+    </script>
+
+    <script
+      async
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCiDNARt9aUbVyls9wh_NjhgJM0HSS58Vc&callback=initMap">
+    </script>
+  </body>
+</html>
