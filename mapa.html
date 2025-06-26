@@ -7,6 +7,24 @@
       #map {
         height: 100vh;
         width: 100%;
+        position: relative;
+        z-index: 0;
+      }
+
+      .custom-marker {
+        padding: 6px 10px;
+        background: #4285f4;
+        color: white;
+        font-weight: bold;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 1;
+      }
+
+      /* Garante que a camada da rota fica visível */
+      #map canvas {
+        z-index: 1 !important;
+        opacity: 1 !important;
       }
     </style>
   </head>
@@ -15,42 +33,101 @@
 
     <script>
       async function initMap() {
-        // Coordenadas iniciais (centro do mapa)
-        const center = { lat: -23.5505, lng: -46.6333 };
+        const center = { lat: 37.1291787, lng: -8.5941054 };
+        const { AdvancedMarkerElement } = await google.maps.importLibrary(
+          "marker"
+        );
 
         const map = new google.maps.Map(document.getElementById("map"), {
-          zoom: 13,
           center,
+          mapId: "f9b8ac2005e9fa5bad474e2c",
         });
 
         const directionsService = new google.maps.DirectionsService();
-        const directionsRenderer = new google.maps.DirectionsRenderer({ map });
-
-        // Buscar a rota do backend
-        const resposta = await fetch(
-          "http://localhost:3000/buscar-lugares?lat=-23.5505&lng=-46.6333&tipo=restaurant"
-        );
-        const pontos = await resposta.json();
-
-        // Agora envia os pontos para gerar a rota
-        const rotaResp = await fetch("http://localhost:3000/gerar-rota", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pontos }),
+        const directionsRenderer = new google.maps.DirectionsRenderer({
+          map,
+          suppressMarkers: true, // marcadores personalizados
+          preserveViewport: true, // evita erro com fitBounds duplicado
         });
 
-        const rota = await rotaResp.json();
+        try {
+          const rotaResp = await fetch(
+            "http://localhost:3000/mapas/createRoute"
+          );
+          const rotaData = await rotaResp.json();
 
-        directionsRenderer.setDirections({
-          routes: [rota],
-          request: {}, // não precisa preencher nada aqui
-        });
+          console.log("🔍 Rota recebida:", rotaData);
+
+          if (
+            !rotaData ||
+            rotaData.status !== "OK" ||
+            !rotaData.routes?.length
+          ) {
+            console.error("❌ Rota inválida recebida do backend.");
+            return;
+          }
+
+          const bounds = new google.maps.LatLngBounds();
+          rotaData.routes[0].legs.forEach((leg) => {
+            bounds.extend(leg.start_location);
+            bounds.extend(leg.end_location);
+          });
+          map.fitBounds(bounds);
+
+          // Primeiro desenha a linha azul
+          const route = rotaData.routes[0];
+          const origin = route.legs[0].start_location;
+          const destination = route.legs[route.legs.length - 1].end_location;
+          const waypoints = route.legs.slice(0, -1).map((leg) => ({
+            location: leg.end_location,
+            stopover: true,
+          }));
+
+          directionsService.route(
+            {
+              origin,
+              destination,
+              waypoints,
+              travelMode: google.maps.TravelMode.DRIVING,
+              optimizeWaypoints: false,
+            },
+            (result, status) => {
+              if (status === google.maps.DirectionsStatus.OK) {
+                directionsRenderer.setDirections(result);
+              } else {
+                console.error("Erro ao redesenhar a rota:", status);
+              }
+            }
+          );
+
+          // Depois adiciona os marcadores nas paragens
+          const legs = rotaData.routes[0].legs;
+          for (let i = 0; i < legs.length; i++) {
+            const pos = legs[i].end_location;
+            const label = document.createElement("div");
+            label.className = "custom-marker";
+            label.textContent = `${i + 1}`;
+
+            new AdvancedMarkerElement({
+              map,
+              position: pos,
+              title: `Paragem ${i + 1}`,
+              content: label,
+            });
+          }
+
+          // Debug adicional
+          const result = directionsRenderer.getDirections();
+          console.log("✅ Rota aplicada ao mapa:", result);
+        } catch (error) {
+          console.error("❌ Erro ao buscar ou desenhar a rota:", error);
+        }
       }
     </script>
 
     <script
       async
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCiDNARt9aUbVyls9wh_NjhgJM0HSS58Vc&callback=initMap">
-    </script>
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDPdT_MEZ-6og6F2QbL4ys6tT0xCA9ZnuY&callback=initMap&libraries=marker"
+    ></script>
   </body>
 </html>
